@@ -1,52 +1,226 @@
-## BEGIN - TO DELETE TILL END
+# @reshuffle/wix-connector
 
-THIS IS A TEMPLATE REPO FOR NEW RESHUFFLE CONNECTORS
-1. Create a new connector repo from this template using this link https://github.com/reshufflehq/reshuffle-template-connector/generate
-2. Clone the repo locally
-3. Rename all occurrences of _CONNECTOR_NAME_
-4. `npm install`
-5. `npm run build:watch`
-6. Implement your events/actions in `src/index.ts`
-7. `npm run lint`
-8. Push your code
-9. Go to https://app.circleci.com/projects/project-dashboard/github/reshufflehq/
-    a. You should see your new connector repo
-    b. click on `Set Up Project` for the repo
-    c. click on `Use Existing Config`
-    d. click on `Start Building`
+[Code](https://github.com/reshufflehq/reshuffle-wix-connector) |
+[npm](https://www.npmjs.com/package/@reshuffle/wix-connector) |
+[Code sample](https://github.com/reshufflehq/reshuffle/examples/wix)
 
-10. If circle CI checks are all green, you are all set!
+`npm install reshuffle-wix-connector`
 
-// Keep documentation template below
+### Reshuffle Wix Connector
 
-## END
+This package contains a [Reshuffle](https://github.com/reshufflehq/reshuffle)
+connector to connect an external database collection for Wix as described in [Wix External Collections](https://www.wix.com/corvid/reference/spis/external-database-collections/external-database-collections).
 
-# reshuffle-_CONNECTOR_NAME_-connector
+The following example exposes an endpoint to return the number of items in the external collection.
+It uses a postgres database configured with a Reshuffle pgsql connector
 
-### Reshuffle _CONNECTOR_NAME_ Connector
+```js
+const { Reshuffle } = require('reshuffle')
+const { WixConnector } = require('@reshuffle/wix-connector')
+const { PgsqlConnector } = require('reshuffle-pgsql-connector')
 
-This connector provides <description>.
+const app = new Reshuffle()
 
-#### Configuration Options:
-```typescript
-interface _CONNECTOR_NAME_ConnectorConfigOptions {
-  foo: string // foo description
-  bar?: number // bar description
-}
+// The collection (or table) name
+const COLLECTION = 'tasks'
+
+const pg = new PgsqlConnector(app, {
+  url: process.env.WIX_DB_URL
+})
+
+const wix = new WixConnector(app, {
+  secret: process.env.RESHUFFLE_WIX_SECRET,
+})
+
+wix.on({ action: 'data/count' }, async (event, app) => {
+  const { collectionName, filter } = event.request.body
+  if (collectionName === COLLECTION) {
+    const todos = await pg.query(`SELECT * from ${COLLECTION}`)
+    event.response.status(200).json({ totalCount: todos.rowCount })
+  } else {
+    event.response.status(400).json({ 'message': 'Bad request. We only have todos' })
+  }
+})
+
+app.start()
 ```
 
-#### Connector events
+### Table of Contents
 
-##### event1 description
-The connector fires this event when ...
+[Configuration Options](#configuration)
 
-##### event2 description
-The connector fires this event when ...
+[Events](#events)
 
-#### Connector actions
+[Actions](#actions)
 
-##### action1
-The connector provides action1 which ...
+[Utility Functions](#utils)
 
-##### action2
-The connector provides action2 which ...
+### <a name="configuration"></a> Configuration options
+
+```js
+const app = new Reshuffle()
+const wix = new WixConnector(app, {
+  secret: process.env.RESHUFFLE_WIX_SECRET,
+  webhookPath: process.env.RESHUFFLE_WIX_WEBHOOK,
+})
+```
+Both `secret` and `webhookPath` are optional.
+
+The secret is a string containing a shared secret as described in [Wix Authentication](https://www.wix.com/corvid/reference/spis/external-database-collections/external-database-collections/authentication)
+
+When configuring the external database collection on Wix, you can define a `settings` object that is sent from Wix to the connector with every request.
+
+To use (the optional) secret, configure the settings object to include:
+```json
+{
+  "secret": ".....your secret....."
+}
+```
+Wix then includes it in the incoming request like so:
+```json
+{
+    "requestContext": {
+        "settings": {
+            "secret": ".....your secret....."
+        },
+        "instanceId": "...",
+        "installationId": "...",
+        "memberId": "...",
+        "role": "..."
+  }
+}
+``` 
+If you do not define a secret in the connector configuration, then it will not expect one.
+
+You can use the `webhookPath` to configure the url that Wix hits when it makes its calls to
+your external database collection. The value of `webhookPath` will be appended to your runtime's
+base url.
+Left unprovided, `webhookPath` defaults to `/webhooks/wix`, so if your runtime runs at `https://example.com/` then
+your full webhook path is `https://example.com/webhooks/wix`. This is the path you'll need
+to register with Wix when defining a new external collection. See [Wix External Datbase instructions](https://support.wix.com/en/article/corvid-adding-and-deleting-an-external-database-collection).
+
+### <a name="events"></a> Events
+
+When Wix makes a call to the external collection, the connector captures these calls. 
+It then triggers the corresponding event.
+
+To listen to events coming from Wix, you'll need to capture them with the connector's `on`
+function, providing a `WixEventConfiguration` to it.
+
+```typescript
+interface WixConnectorEventOptions {
+  action: WixAction // See below
+}
+
+// Where...
+type WixAction =
+  'provision'
+  | 'schemas/find'
+  | 'schemas/list'
+  | 'data/get'
+  | 'data/count'
+  | 'data/find'
+  | 'data/insert'
+  | 'data/update'
+```
+The connector triggers events of the following type:
+
+```typescript
+interface WixEvent {
+  requestContext: WixRequestContext
+  collectionName?: string
+  filter?: string
+  sort?: any
+  skip?: number
+  limit?: number
+  itemId?: string
+  item?: any
+  body?: any
+  action: WixAction
+  request: Request // The http request from Wix
+  response: Response // The http response object 
+}
+
+interface WixRequestContext {
+  settings: Record<string, any>
+  instanceId: string
+  installationId: string
+  memberId: string
+  role: string
+}
+```
+The description of all fields and events can be found [here](https://www.wix.com/corvid/reference/spis/external-database-collections/external-database-collections)
+
+### <a name="actions"></a> Actions
+
+This connector provides no actions.
+
+### <a name="utils"></a> Utility Functions
+
+The Wix connector provides some utility functions to help converting data between Wix and a database.
+To use these functions, import them from the WixConnector package:
+```js
+const { parseFilter, wrapDates, unwrapDates } = require('@reshuffle/wix-connector')
+```
+#### `parseFilter`
+Used to convert a `filter` object from Wix [See here](https://www.wix.com/corvid/reference/spis/external-database-collections/external-database-collections/data/find-items) to a PostgreSQL `WHERE` statement.
+
+#### `unwrapDates`
+Used to convert a date-structure coming in from Wix to a flat structure on the item object.
+For example:
+```typescript
+// This is an item coming in from Wix:
+const item = {
+    "_id": "12345678-abcd-9876-fedc-a9876543210",
+    "_owner": "77aa88bb-2c2c-d3d3-4e4e-ff55aa66bb77",
+    "make": "BMW",
+    "model": "i8",
+    "year": 2020,
+    "date_added": {
+        "$date": "2020-01-01T21:00:00.000Z"
+    }
+}
+
+const unwrapped = unwrapDates(item)
+console.log(unwrapped)
+//
+{
+    "_id": "12345678-abcd-9876-fedc-a9876543210",
+    "_owner": "77aa88bb-2c2c-d3d3-4e4e-ff55aa66bb77",
+    "make": "BMW",
+    "model": "i8",
+    "year": 2020,
+    "date_added": "2020-01-01T21:00:00.000Z"
+}
+``` 
+
+#### `wrapDates`
+Used to convert a date-containing flat structure of an item object to
+the date-structure Wix is expecting.
+
+For example:
+```typescript
+// This is an item coming in from Wix:
+const item = {
+    "_id": "12345678-abcd-9876-fedc-a9876543210",
+    "_owner": "77aa88bb-2c2c-d3d3-4e4e-ff55aa66bb77",
+    "make": "BMW",
+    "model": "i8",
+    "year": 2020,
+    "date_added": "2020-01-01T21:00:00.000Z"
+}
+
+const wrapped = wrapDates(item)
+console.log(wrapped)
+//
+{
+    "_id": "12345678-abcd-9876-fedc-a9876543210",
+    "_owner": "77aa88bb-2c2c-d3d3-4e4e-ff55aa66bb77",
+    "make": "BMW",
+    "model": "i8",
+    "year": 2020,
+    "date_added": {
+        "$date": "2020-01-01T21:00:00.000Z"
+    }
+}
+``` 

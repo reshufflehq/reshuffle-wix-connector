@@ -1,61 +1,131 @@
-import { Reshuffle, BaseConnector, EventConfiguration } from 'reshuffle-base-connector'
+import { BaseHttpConnector, EventConfiguration, Reshuffle } from '@reshuffle/base-connector'
+import { parseFilter, unwrapDates, wrapDates } from './util'
 
-export interface _CONNECTOR_NAME_ConnectorConfigOptions {
-  var1: string
-  // ...
+import { Request, Response } from 'express'
+
+const DEFAULT_WEBHOOK_PATH = '/webhooks/wix'
+
+export interface WixConnectorConfigOptions {
+  secret?: string
+  webhookPath: string
 }
 
-export interface _CONNECTOR_NAME_ConnectorEventOptions {
-  option1?: string
-  // ...
+export type WixAction =
+  | 'provision'
+  | 'schemas/find'
+  | 'schemas/list'
+  | 'data/get'
+  | 'data/count'
+  | 'data/find'
+  | 'data/insert'
+  | 'data/update'
+
+export interface WixConnectorEventOptions {
+  action: WixAction
 }
 
-export default class _CONNECTOR_NAME_Connector extends BaseConnector<
-  _CONNECTOR_NAME_ConnectorConfigOptions,
-  _CONNECTOR_NAME_ConnectorEventOptions
-> {
-  // Your class variables
-  var1: string
+export interface WixRequestContext {
+  settings: Record<string, any>
+  instanceId: string
+  installationId: string
+  memberId: string
+  role: string
+}
 
-  constructor(app: Reshuffle, options?: _CONNECTOR_NAME_ConnectorConfigOptions, id?: string) {
+export interface WixEvent {
+  requestContext: WixRequestContext
+  collectionName?: string
+  filter?: string
+  sort?: any
+  skip?: number
+  limit?: number
+  itemId?: string
+  item?: any
+  body?: any
+  action: WixAction
+  request: Request
+  response: Response
+}
+
+class WixConnector extends BaseHttpConnector<WixConnectorConfigOptions, WixConnectorEventOptions> {
+  private webhookPath = ''
+
+  constructor(app: Reshuffle, options?: WixConnectorConfigOptions, id?: string) {
     super(app, options, id)
-    this.var1 = options?.var1 || 'initial value'
-    // ...
   }
 
   onStart(): void {
-    // If you need to do something specific on start, otherwise remove this function
-  }
-
-  onStop(): void {
-    // If you need to do something specific on stop, otherwise remove this function
-  }
-
-  // Your events
-  on(
-    options: _CONNECTOR_NAME_ConnectorEventOptions,
-    handler: any,
-    eventId: string,
-  ): EventConfiguration {
-    if (!eventId) {
-      eventId = `_CONNECTOR_NAME_/${options.option1}/${this.id}`
+    if (Object.keys(this.eventConfigurations).length) {
+      this.webhookPath = this.configOptions.webhookPath || DEFAULT_WEBHOOK_PATH
+      this.app.getLogger().info(`Registering Wix webhook: ${this.webhookPath}`)
+      this.app.registerHTTPDelegate(`${this.webhookPath}/provision`, this)
+      this.app.registerHTTPDelegate(`${this.webhookPath}/:context`, this)
+      this.app.registerHTTPDelegate(`${this.webhookPath}/:context/:action`, this)
     }
-    const event = new EventConfiguration(eventId, this, options)
+  }
+
+  on(
+    options: WixConnectorEventOptions,
+    handler: (event: WixEvent, app: Reshuffle) => void,
+    eventId?: string,
+  ): EventConfiguration {
+    const event = new EventConfiguration(
+      eventId || `WixDataConnector/${options.action}/${this.id}`,
+      this,
+      options,
+    )
     this.eventConfigurations[event.id] = event
-
-    this.app.when(event, handler)
-
+    this.app.when(event, handler as any)
     return event
   }
 
-  // Your actions
-  action1(bar: string): void {
-    // Your implementation here
+  async handle(req: Request, res: Response): Promise<boolean> {
+    if (this.started) {
+      await this.handleWebhookEvent({ req, res, url: req.originalUrl })
+    } else {
+      res.json({ message: 'Connector not configured' }).status(400)
+    }
+    return true
   }
 
-  action2(foo: string): void {
-    // Your implementation here
+  private async handleWebhookEvent(event: Record<string, any>) {
+    const path: string = this.extractAction(event.url)
+    const incoming = event.req.body
+    const ev: WixEvent = {
+      action: path as WixAction,
+      requestContext: incoming.requestContext,
+      collectionName: incoming.collectionName,
+      filter: incoming.filter,
+      sort: incoming.sort,
+      skip: incoming.skip,
+      limit: incoming.limit,
+      itemId: incoming.itemId,
+      item: incoming.item,
+      request: event.req,
+      response: event.res,
+    }
+    if (
+      !this.configOptions.secret ||
+      (ev.requestContext.settings.secret &&
+        this.configOptions.secret === ev.requestContext.settings.secret)
+    ) {
+      for (const ec of Object.values(this.eventConfigurations)) {
+        const storeAction = ec.options.action
+        const incoming = ev.action
+        if (storeAction == incoming) {
+          await this.app.handleEvent(ec.id, ev)
+          return
+        }
+      }
+      event.res.status(400).json({ message: `Connector not configured for event [${ev.action}]` })
+    } else {
+      event.res.status(401).json({ message: `Mismatch [${path}]` })
+    }
+  }
+
+  private extractAction(url: string): string {
+    return url.replace(this.webhookPath, '').replace(/^\/+/, '')
   }
 }
 
-export { _CONNECTOR_NAME_Connector }
+export { WixConnector, parseFilter, unwrapDates, wrapDates }
