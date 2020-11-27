@@ -1,7 +1,7 @@
 # @reshuffle/wix-connector
 
 [Code](https://github.com/reshufflehq/reshuffle-wix-connector) |
-[npm](https://www.npmjs.com/package/@reshuffle/wix-connector) |
+[npm](https://www.npmjs.com/package/reshuffle-wix-connector) |
 [Code sample](https://github.com/reshufflehq/reshuffle/examples/wix)
 
 `npm install reshuffle-wix-connector`
