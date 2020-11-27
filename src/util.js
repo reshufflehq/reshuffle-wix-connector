@@ -1,4 +1,5 @@
 // Filter based on https://github.com/wix/corvid-external-db-mysql-adapter/blob/master/service/support/filter-parser.js
+/* eslint @typescript-eslint/no-var-requires: "off" */
 const escape = require('sqlutils/pg/escape')
 const EMPTY = ''
 
@@ -64,7 +65,7 @@ const parseInternal = (filter) => {
         : `${filter.fieldName} = ${escape(mapValue(filter.value))}`
     }
     default:
-      throw new BadRequestError(`Filter of type ${filter.operator} is not supported.`)
+      throw new Error(`Filter of type ${filter.operator} is not supported.`)
   }
 }
 
