@@ -1,25 +1,17 @@
-import {
-  BaseHttpConnector,
-  EventConfiguration,
-  Reshuffle,
-} from '@reshuffle/base-connector'
-import {
-  parseFilter,
-  unwrapDates,
-  wrapDates,
-} from "./util"
+import { BaseHttpConnector, EventConfiguration, Reshuffle } from '@reshuffle/base-connector'
+import { parseFilter, unwrapDates, wrapDates } from './util'
 
-import {Request, Response} from 'express'
+import { Request, Response } from 'express'
 
 const DEFAULT_WEBHOOK_PATH = '/webhooks/wix'
 
 export interface WixConnectorConfigOptions {
-  secret?: string,
-  webhookPath: string,
+  secret?: string
+  webhookPath: string
 }
 
 export type WixAction =
-  'provision'
+  | 'provision'
   | 'schemas/find'
   | 'schemas/list'
   | 'data/get'
@@ -55,24 +47,20 @@ export interface WixEvent {
   response: Response
 }
 
-class WixConnector extends BaseHttpConnector<WixConnectorConfigOptions,
-  WixConnectorEventOptions> {
-
-  private readonly secret: string | undefined
-  private webhookUrl: string = ''
+class WixConnector extends BaseHttpConnector<WixConnectorConfigOptions, WixConnectorEventOptions> {
+  private webhookPath = ''
 
   constructor(app: Reshuffle, options?: WixConnectorConfigOptions, id?: string) {
     super(app, options, id)
-    this.secret = options?.secret || undefined
   }
 
   onStart(): void {
     if (Object.keys(this.eventConfigurations).length) {
-      this.webhookUrl = (this.configOptions.webhookPath || DEFAULT_WEBHOOK_PATH)
-      this.app.getLogger().info(`Registering Wix webhook: ${this.webhookUrl}`)
-      this.app.registerHTTPDelegate(`${this.webhookUrl}/provision`, this)
-      this.app.registerHTTPDelegate(`${this.webhookUrl}/:context`, this)
-      this.app.registerHTTPDelegate(`${this.webhookUrl}/:context/:action`, this)
+      this.webhookPath = this.configOptions.webhookPath || DEFAULT_WEBHOOK_PATH
+      this.app.getLogger().info(`Registering Wix webhook: ${this.webhookPath}`)
+      this.app.registerHTTPDelegate(`${this.webhookPath}/provision`, this)
+      this.app.registerHTTPDelegate(`${this.webhookPath}/:context`, this)
+      this.app.registerHTTPDelegate(`${this.webhookPath}/:context/:action`, this)
     }
   }
 
@@ -91,15 +79,11 @@ class WixConnector extends BaseHttpConnector<WixConnectorConfigOptions,
     return event
   }
 
-  onRemoveEvent(ec: EventConfiguration): void {
-    delete this.eventConfigurations[ec.id]
-  }
-
   async handle(req: Request, res: Response): Promise<boolean> {
     if (this.started) {
-      await this.handleWebhookEvent({req, res, url: req.originalUrl})
+      await this.handleWebhookEvent({ req, res, url: req.originalUrl })
     } else {
-      res.json({"message": "Connector not configured"}).status(400)
+      res.json({ message: 'Connector not configured' }).status(400)
     }
     return true
   }
@@ -118,12 +102,13 @@ class WixConnector extends BaseHttpConnector<WixConnectorConfigOptions,
       itemId: incoming.itemId,
       item: incoming.item,
       request: event.req,
-      response: event.res
+      response: event.res,
     }
-    if (!this.secret ||
+    if (
+      !this.configOptions.secret ||
       (ev.requestContext.settings.secret &&
-        this.secret === ev.requestContext.settings.secret)) {
-
+        this.configOptions.secret === ev.requestContext.settings.secret)
+    ) {
       for (const ec of Object.values(this.eventConfigurations)) {
         const storeAction = ec.options.action
         const incoming = ev.action
@@ -132,17 +117,15 @@ class WixConnector extends BaseHttpConnector<WixConnectorConfigOptions,
           return
         }
       }
-      event.res.status(400).json({"message": `Connector not configured for event [${ev.action}]`})
+      event.res.status(400).json({ message: `Connector not configured for event [${ev.action}]` })
     } else {
-      event.res.status(401).json({"message": `Mismatch [${path}]`})
+      event.res.status(401).json({ message: `Mismatch [${path}]` })
     }
   }
 
   private extractAction(url: string): string {
-    return url
-      .replace(this.webhookUrl, '')
-      .replace(/^\/+/, '')
+    return url.replace(this.webhookPath, '').replace(/^\/+/, '')
   }
 }
 
-export {WixConnector, parseFilter, unwrapDates, wrapDates}
+export { WixConnector, parseFilter, unwrapDates, wrapDates }

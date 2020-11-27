@@ -2,7 +2,7 @@
 const escape = require('sqlutils/pg/escape')
 const EMPTY = ''
 
-const parseFilter = filter => {
+const parseFilter = (filter) => {
   if (filter && filter.operator) {
     const parsed = parseInternal(filter)
     return parsed ? `WHERE ${parsed}` : EMPTY
@@ -10,8 +10,7 @@ const parseFilter = filter => {
   return EMPTY
 }
 
-const parseInternal = filter => {
-
+const parseInternal = (filter) => {
   if (!filter || filter.operator === undefined) {
     return 'TRUE = TRUE'
   }
@@ -41,9 +40,9 @@ const parseInternal = filter => {
       return `${filter.fieldName} >= ${escape(mapValue(filter.value))}`
     case '$hasSome': {
       const list = filter.value
-      .map(mapValue)
-      .map(date => escape(date, null, null))
-      .join(', ')
+        .map(mapValue)
+        .map((date) => escape(date, null, null))
+        .join(', ')
       return list ? `${filter.fieldName} IN (${list})` : EMPTY
     }
     case '$contains':
@@ -52,7 +51,7 @@ const parseInternal = filter => {
       }
       return `${filter.fieldName} LIKE ${escape(`%${filter.value}%`)}`
     case '$urlized': {
-      const list = filter.value.map(s => s.toLowerCase()).join('[- ]')
+      const list = filter.value.map((s) => s.toLowerCase()).join('[- ]')
       return list ? `LOWER(${filter.fieldName}) RLIKE '${list}'` : EMPTY
     }
     case '$startsWith':
@@ -65,13 +64,11 @@ const parseInternal = filter => {
         : `${filter.fieldName} = ${escape(mapValue(filter.value))}`
     }
     default:
-      throw new BadRequestError(
-        `Filter of type ${filter.operator} is not supported.`
-      )
+      throw new BadRequestError(`Filter of type ${filter.operator} is not supported.`)
   }
 }
 
-const mapValue = value => {
+const mapValue = (value) => {
   if (value === null || value === undefined) return null
   const reISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*))(?:Z|(\+|-)([\d|:]*))?$/
   if (typeof value === 'object' && '$date' in value) {
@@ -86,10 +83,8 @@ const mapValue = value => {
   return value
 }
 
-
-const wrapDates = item => {
-  Object.keys(item)
-  .map(key => {
+const wrapDates = (item) => {
+  Object.keys(item).map((key) => {
     if (item[key] instanceof Date) {
       item[key] = { $date: item[key] }
     }
@@ -98,9 +93,8 @@ const wrapDates = item => {
   return item
 }
 
-const unwrapDates = item => {
-  Object.keys(item)
-  .map(key => {
+const unwrapDates = (item) => {
+  Object.keys(item).map((key) => {
     if (item[key]['$date']) {
       item[key] = item[key]['$date']
     }

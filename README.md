@@ -53,7 +53,7 @@ app.start()
 
 [Actions](#actions)
 
-[Utilitiey Functions](#utils)
+[Utility Functions](#utils)
 
 ### <a name="configuration"></a> Configuration options
 
@@ -70,7 +70,7 @@ The secret is a string containing a shared secret as described in [Wix Authentic
 
 When configuring the external database collection on Wix, you can define a `settings` object that is sent from Wix to the connector with every request.
 
-To use (the optional) secret, you should configure the settings object to include:
+To use (the optional) secret, configure the settings object to include:
 ```json
 {
   "secret": ".....your secret....."
@@ -97,7 +97,7 @@ your external database collection. The value of `webhookPath` will be appended t
 base url.
 Left unprovided, `webhookPath` defaults to `/webhooks/wix`, so if your runtime runs at `https://example.com/` then
 your full webhook path is `https://example.com/webhooks/wix`. This is the path you'll need
-to register with Wix when defining a new external collection.
+to register with Wix when defining a new external collection. See [Wix External Datbase instructions](https://support.wix.com/en/article/corvid-adding-and-deleting-an-external-database-collection).
 
 ### <a name="events"></a> Events
 
@@ -111,6 +111,17 @@ function, providing a `WixEventConfiguration` to it.
 interface WixConnectorEventOptions {
   action: WixAction // See below
 }
+
+// Where...
+type WixAction =
+  'provision'
+  | 'schemas/find'
+  | 'schemas/list'
+  | 'data/get'
+  | 'data/count'
+  | 'data/find'
+  | 'data/insert'
+  | 'data/update'
 ```
 The connector triggers events of the following type:
 
@@ -129,17 +140,6 @@ interface WixEvent {
   request: Request // The http request from Wix
   response: Response // The http response object 
 }
-
-// Where...
-type WixAction =
-  'provision'
-  | 'schemas/find'
-  | 'schemas/list'
-  | 'data/get'
-  | 'data/count'
-  | 'data/find'
-  | 'data/insert'
-  | 'data/update'
 
 interface WixRequestContext {
   settings: Record<string, any>
