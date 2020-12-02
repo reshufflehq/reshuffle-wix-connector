@@ -86,7 +86,7 @@ const mapValue = (value) => {
 
 const wrapDates = (item) => {
   Object.keys(item).map((key) => {
-    if (item[key] instanceof Date) {
+    if (item[key] && item[key] instanceof Date) {
       item[key] = { $date: item[key] }
     }
   })
@@ -96,7 +96,7 @@ const wrapDates = (item) => {
 
 const unwrapDates = (item) => {
   Object.keys(item).map((key) => {
-    if (item[key]['$date']) {
+    if (item[key] && item[key]['$date']) {
       item[key] = item[key]['$date']
     }
   })
