@@ -1,6 +1,6 @@
 {
   "name": "reshuffle-wix-connector",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Reshuffle WIX database connector",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
